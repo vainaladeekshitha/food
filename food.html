@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Online Food Management — O, S, C Patterns</title>
+  <style>
+    :root{font-family:system-ui,Segoe UI,Roboto,Arial;--accent:#ff6b6b}
+    body{margin:0;background:#f5f7fb;color:#222}
+    header{background:#fff;padding:16px 24px;box-shadow:0 2px 6px rgba(0,0,0,.06);display:flex;align-items:center;justify-content:space-between}
+    h1{margin:0;font-size:18px}
+    .wrap{max-width:1000px;margin:24px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:20px}
+    .card{background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(11,20,40,.06)}
+    .menu-list{display:grid;gap:10px}
+    .menu-item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;border:1px dashed #eee}
+    button{background:var(--accent);color:#fff;border:0;padding:8px 10px;border-radius:8px;cursor:pointer}
+    .muted{color:#666;font-size:13px}
+    .cart-list{display:grid;gap:8px}
+    .cart-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;border:1px solid #f0f0f0}
+    .controls{display:flex;gap:8px}
+    .small{font-size:13px;padding:6px 8px}
+    footer{margin-top:18px;color:#666;font-size:13px}
+    .status-line{display:flex;gap:8px;align-items:center}
+    .status-dot{width:10px;height:10px;border-radius:50%}
+    .status{display:flex;flex-direction:column;gap:6px}
+    pre{background:#fafafa;padding:12px;border-radius:8px;overflow:auto}
+    .pattern-title{font-weight:600;margin-bottom:6px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Online Food Management — Demo (Observer / Strategy / Command)</h1>
+    <div class="muted">A single-file demo</div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+      <section class="card">
+        <div class="pattern-title">Menu — add to cart</div>
+        <div class="menu-list" id="menuList"></div>
+
+        <hr style="margin:14px 0">
+        <div class="pattern-title">Order controls (Command pattern)</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button id="placeOrderBtn">Place Order</button>
+          <button id="undoBtn" class="small" style="background:#888">Undo</button>
+          <button id="redoBtn" class="small" style="background:#888">Redo</button>
+        </div>
+        <div class="muted">Commands are used to encapsulate actions (add, remove, place). Undo/Redo supported.</div>
+
+        <hr style="margin:14px 0">
+        <div class="pattern-title">Pricing strategy (Strategy pattern)</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <label><input type="radio" name="pricing" value="normal" checked> Normal</label>
+          <label><input type="radio" name="pricing" value="discount"> Discount (10% off)</label>
+          <label><input type="radio" name="pricing" value="deliveryFree"> Free Delivery over ₹500</label>
+        </div>
+        <div id="priceSummary"></div>
+
+        <hr style="margin:14px 0">
+        <div class="pattern-title">Event log (Observer pattern)</div>
+        <div style="height:140px;overflow:auto;padding:8px;background:#fafafa;border-radius:8px" id="eventLog"></div>
+
+      </section>
+
+      <aside class="card">
+        <div class="pattern-title">Cart</div>
+        <div class="cart-list" id="cartList"></div>
+        <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+          <div class="muted">Subtotal</div>
+          <div id="subtotal">₹0</div>
+        </div>
+
+        <hr style="margin:12px 0">
+        <div class="pattern-title">Order status (Observer)</div>
+        <div class="status">
+          <div class="status-line"><div class="status-dot" id="dot-placed" style="background:#ddd"></div><div id="lbl-placed">Placed</div></div>
+          <div class="status-line"><div class="status-dot" id="dot-prep" style="background:#ddd"></div><div id="lbl-prep">Preparing</div></div>
+          <div class="status-line"><div class="status-dot" id="dot-dispatch" style="background:#ddd"></div><div id="lbl-dispatch">Dispatch</div></div>
+          <div class="status-line"><div class="status-dot" id="dot-delivered" style="background:#ddd"></div><div id="lbl-delivered">Delivered</div></div>
+        </div>
+
+        <footer>
+          <div class="muted">This demo uses plain JS classes to show how three patterns integrate in a simple food ordering flow.</div>
+        </footer>
+      </aside>
+    </div>
+
+    <section style="margin-top:18px" class="card">
+      <div class="pattern-title">Notes: What each pattern does</div>
+      <ul>
+        <li><strong>Observer:</strong> Order status changes are broadcast to UI listeners (e.g., status icons, logs).</li>
+        <li><strong>Strategy:</strong> Pricing calculation can be swapped at runtime (normal, discount, delivery rule).</li>
+        <li><strong>Command:</strong> User actions (add/remove/place order) are encapsulated so they can be undone/redone.</li>
+      </ul>
+      <div style="margin-top:8px"><strong>Try:</strong> add items, toggle pricing strategy, place an order then watch status updates (Observer).
+      Use Undo to revert last command (Command).</div>
+    </section>
+  </div>
+
+  <script>
+  /********************
+   * Sample data
+   ********************/
+  const MENU = [
+    { id: 'm1', name: 'Paneer Butter Masala', price: 220 },
+    { id: 'm2', name: 'Margherita Pizza', price: 299 },
+    { id: 'm3', name: 'Veg Biryani', price: 180 },
+    { id: 'm4', name: 'Masala Dosa', price: 120 },
+    { id: 'm5', name: 'Gulab Jamun (2 pcs)', price: 60 }
+  ];
+
+  /********************
+   * Observer Pattern
+   * A simple Subject/Observer implementation to notify listeners
+   ********************/
+  class Subject {
+    constructor(){ this.observers = [] }
+    subscribe(obs){ this.observers.push(obs) }
+    unsubscribe(obs){ this.observers = this.observers.filter(o => o !== obs) }
+    notify(payload){ this.observers.forEach(o => o.update && o.update(payload)) }
+  }
+
+  // OrderStatusSubject will broadcast status changes (placed -> preparing -> dispatch -> delivered)
+  class OrderStatusSubject extends Subject {
+    constructor(){ super(); this.status = 'idle' }
+    setStatus(status){ this.status = status; this.notify({type:'statusChange', status}) }
+  }
+
+  const orderStatus = new OrderStatusSubject();
+
+  // Example observers: status UI and event log
+  const statusUIObserver = {
+    update(payload){
+      if(payload.type === 'statusChange') updateStatusUI(payload.status)
+    }
+  }
+  const logObserver = {
+    update(payload){
+      appendLog(JSON.stringify(payload))
+    }
+  }
+
+  orderStatus.subscribe(statusUIObserver)
+  orderStatus.subscribe(logObserver)
+
+  /********************
+   * Strategy Pattern
+   * Different pricing strategies that implement calculate(cart, subtotal)
+   ********************/
+  class NormalPricing {
+    calculate(cart, subtotal){
+      return { total: subtotal, note: 'Normal pricing' }
+    }
+  }
+  class DiscountPricing {
+    calculate(cart, subtotal){
+      const total = Math.round(subtotal * 0.9);
+      return { total, note: '10% discount applied' }
+    }
+  }
+  class DeliveryFreePricing {
+    calculate(cart, subtotal){
+      const delivery = subtotal >= 500 ? 0 : 40;
+      return { total: subtotal + delivery, note: delivery===0 ? 'Free delivery (>=₹500)' : `Delivery ₹${delivery}` }
+    }
+  }
+
+  // PriceContext holds chosen strategy
+  class PriceContext {
+    constructor(strategy){ this.strategy = strategy }
+    setStrategy(s){ this.strategy = s }
+    calculate(cart, subtotal){ return this.strategy.calculate(cart, subtotal) }
+  }
+
+  const priceContext = new PriceContext(new NormalPricing())
+
+  /********************
+   * Command Pattern
+   * Encapsulate actions so they can be undone/redone
+   ********************/
+  class CommandManager {
+    constructor(){ this.done = []; this.undone = [] }
+    execute(cmd){ cmd.execute(); this.done.push(cmd); this.undone = [] }
+    undo(){ const cmd = this.done.pop(); if(cmd){ cmd.undo(); this.undone.push(cmd) } }
+    redo(){ const cmd = this.undone.pop(); if(cmd){ cmd.execute(); this.done.push(cmd) } }
+  }
+
+  const cmdManager = new CommandManager()
+
+  // Concrete commands
+  class AddToCartCommand {
+    constructor(cart, item){ this.cart = cart; this.item = item }
+    execute(){ this.cart.addItem(this.item); }
+    undo(){ this.cart.removeItem(this.item.id); }
+  }
+  class RemoveFromCartCommand {
+    constructor(cart, itemId){ this.cart = cart; this.itemId = itemId }
+    execute(){ this._backup = this.cart.getItem(this.itemId); this.cart.removeItem(this.itemId); }
+    undo(){ if(this._backup) this.cart.addItem(this._backup); }
+  }
+  class PlaceOrderCommand {
+    constructor(cart){ this.cart = cart }
+    execute(){ this.cart.placeOrder(); }
+    undo(){ this.cart.cancelOrder(); }
+  }
+
+  /********************
+   * Cart (acts as receiver in Command pattern)
+   ********************/
+  class Cart {
+    constructor(){ this.items = {} }
+    addItem(item){
+      if(!this.items[item.id]) this.items[item.id] = Object.assign({}, item, {qty:0})
+      this.items[item.id].qty += 1; renderCart(); appendLog('Added: '+item.name)
+    }
+    removeItem(itemId){ if(this.items[itemId]){ this.items[itemId].qty -= 1; if(this.items[itemId].qty<=0) delete this.items[itemId]; renderCart(); appendLog('Removed: '+itemId) } }
+    getItem(id){ return this.items[id] ? Object.assign({}, this.items[id]) : null }
+    getSubtotal(){ return Object.values(this.items).reduce((s,it) => s + it.price * it.qty, 0) }
+    placeOrder(){
+      if(Object.keys(this.items).length===0){ alert('Cart empty') ; return }
+      appendLog('Order placed, preparing...')
+      orderStatus.setStatus('placed')
+      // simulate asynchronous status updates
+      setTimeout(()=> orderStatus.setStatus('preparing'), 1200)
+      setTimeout(()=> orderStatus.setStatus('dispatched'), 2800)
+      setTimeout(()=> orderStatus.setStatus('delivered'), 4600)
+      // clear cart
+      this.items = {};
+      renderCart();
+    }
+    cancelOrder(){ appendLog('Order cancelled'); orderStatus.setStatus('idle') }
+  }
+
+  const cart = new Cart()
+
+  /********************
+   * UI helpers
+   ********************/
+  const menuList = document.getElementById('menuList')
+  const cartList = document.getElementById('cartList')
+  const subtotalEl = document.getElementById('subtotal')
+  const eventLog = document.getElementById('eventLog')
+  const priceSummary = document.getElementById('priceSummary')
+
+  function appendLog(text){
+    const p = document.createElement('div');
+    p.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+    eventLog.prepend(p);
+  }
+
+  function renderMenu(){
+    menuList.innerHTML = '';
+    MENU.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'menu-item';
+      div.innerHTML = `<div><strong>${item.name}</strong><div class='muted'>₹${item.price}</div></div>`
+      const add = document.createElement('button');
+      add.textContent = 'Add';
+      add.onclick = () => {
+        const cmd = new AddToCartCommand(cart, item);
+        cmdManager.execute(cmd);
+        updatePricing();
+      }
+      div.appendChild(add)
+      menuList.appendChild(div)
+    })
+  }
+
+  function renderCart(){
+    cartList.innerHTML = '';
+    const items = Object.values(cart.items);
+    if(items.length===0){ cartList.innerHTML = '<div class="muted">Cart is empty</div>'; subtotalEl.textContent='₹0'; updatePricing(); return }
+    items.forEach(it => {
+      const div = document.createElement('div'); div.className='cart-item'
+      div.innerHTML = `<div><strong>${it.name}</strong><div class='muted'>₹${it.price} × ${it.qty}</div></div>`
+      const controls = document.createElement('div'); controls.className='controls'
+      const rm = document.createElement('button'); rm.className='small'; rm.textContent='−'; rm.onclick = ()=>{ cmdManager.execute(new RemoveFromCartCommand(cart, it.id)); updatePricing(); }
+      const add = document.createElement('button'); add.className='small'; add.textContent='+'; add.onclick = ()=>{ cmdManager.execute(new AddToCartCommand(cart, {id:it.id,name:it.name,price:it.price})); updatePricing(); }
+      controls.appendChild(rm); controls.appendChild(add)
+      div.appendChild(controls);
+      cartList.appendChild(div)
+    })
+    subtotalEl.textContent = '₹' + cart.getSubtotal()
+    updatePricing();
+  }
+
+  function updateStatusUI(status){
+    // reset
+    ['placed','preparing','dispatched','delivered'].forEach(s => {
+      const dot = document.getElementById('dot-'+(s==='preparing'?'prep':s==='dispatched'?'dispatch':s))
+      if(dot) dot.style.background = '#ddd'
+    })
+    if(status === 'idle'){
+      appendLog('Status reset to idle')
+      return
+    }
+    if(status === 'placed') document.getElementById('dot-placed').style.background = '#ffb74d'
+    if(status === 'preparing') document.getElementById('dot-prep').style.background = '#42a5f5'
+    if(status === 'dispatched') document.getElementById('dot-dispatch').style.background = '#7e57c2'
+    if(status === 'delivered') document.getElementById('dot-delivered').style.background = '#66bb6a'
+  }
+
+  function updatePricing(){
+    const subtotal = cart.getSubtotal();
+    const result = priceContext.calculate(cart, subtotal);
+    priceSummary.innerHTML = `<div><strong>Subtotal:</strong> ₹${subtotal}</div><div class='muted'>${result.note}</div><div style='margin-top:6px;font-weight:600'>Total: ₹${result.total}</div>`
+  }
+
+  // wire radio buttons for strategy selection
+  document.querySelectorAll('input[name="pricing"]').forEach(r => {
+    r.addEventListener('change', (e)=>{
+      const v = e.target.value;
+      if(v === 'normal') priceContext.setStrategy(new NormalPricing())
+      if(v === 'discount') priceContext.setStrategy(new DiscountPricing())
+      if(v === 'deliveryFree') priceContext.setStrategy(new DeliveryFreePricing())
+      appendLog('Pricing strategy changed to '+v)
+      updatePricing()
+    })
+  })
+
+  // place order and undo/redo
+  document.getElementById('placeOrderBtn').addEventListener('click', ()=>{
+    const cmd = new PlaceOrderCommand(cart); cmdManager.execute(cmd);
+  })
+  document.getElementById('undoBtn').addEventListener('click', ()=>{ cmdManager.undo(); updatePricing(); })
+  document.getElementById('redoBtn').addEventListener('click', ()=>{ cmdManager.redo(); updatePricing(); })
+
+  // initialize
+  renderMenu(); renderCart(); updatePricing(); appendLog('App ready')
+
+  </script>
+</body>
+</html>
